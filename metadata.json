@@ -1,0 +1,5 @@
+{
+  "name": "FTU YUM",
+  "description": "Một ứng dụng đặt đồ ăn nhanh mô phỏng cho FTU YUM, cho phép người dùng xem menu, đặt hàng, và theo dõi đơn hàng.",
+  "requestFramePermissions": []
+}
