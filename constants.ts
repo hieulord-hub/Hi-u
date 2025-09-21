@@ -138,7 +138,7 @@ export const sampleFoodItems: FoodItem[] = [
     name: 'Khoai Tây Chiên',
     description: 'Khoai tây giòn rụm, vàng ươm, chấm cùng tương cà hoặc tương ớt. Món ăn vặt không thể thiếu.',
     price: 15000,
-    imageUrls: ['https://iqfoods.vn/wp-content/uploads/2021/08/Khoai-tC3A2y-chiC3AAn.jpg'],
+    imageUrls: ['https://cdn2.fptshop.com.vn/unsafe/1920x0/filters:format(webp):quality(75)/khoai_tay_chien_bao_nhieu_calo_350315fde7.jpg'],
     category: 'Đồ ăn vặt',
     popularity: 250,
     rating: 4.6,
