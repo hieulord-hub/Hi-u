@@ -62,7 +62,7 @@
         -ms-overflow-style: none;  /* IE and Edge */
         scrollbar-width: none;  /* Firefox */
       }
-       /* --- Navigation Animations --- */
+       /* --- Stack Navigation Animations --- */
       @keyframes push-enter {
         from { transform: translateX(100%); }
         to { transform: translateX(0); }
@@ -80,25 +80,43 @@
         to { transform: translateX(100%); }
       }
 
+      /* --- Tab Navigation Animations --- */
+      @keyframes tab-enter-from-right {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
+      }
+      @keyframes tab-exit-to-left {
+        from { transform: translateX(0); }
+        to { transform: translateX(-100%); }
+      }
+      @keyframes tab-enter-from-left {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(0); }
+      }
+      @keyframes tab-exit-to-right {
+        from { transform: translateX(0); }
+        to { transform: translateX(100%); }
+      }
+
       .view-screen {
         position: absolute;
         inset: 0;
         background-color: #F9FAFB; /* bg-gray-50 */
         box-shadow: -8px 0 25px rgba(0,0,0,0.15);
         will-change: transform, opacity;
+        touch-action: pan-y; /* Allow vertical scroll, disable horizontal scrolling unless handled by JS */
       }
-      .animation-push-enter {
-        animation: push-enter 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-      }
-      .animation-push-exit {
-        animation: push-exit 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-      }
-      .animation-pop-enter {
-        animation: pop-enter 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-      }
-      .animation-pop-exit {
-        animation: pop-exit 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-      }
+
+      .animation-push-enter { animation: push-enter 350ms ease-in-out; }
+      .animation-push-exit { animation: push-exit 350ms ease-in-out forwards; }
+      .animation-pop-enter { animation: pop-enter 350ms ease-in-out; }
+      .animation-pop-exit { animation: pop-exit 350ms ease-in-out forwards; }
+      
+      .animation-tab-enter-right { animation: tab-enter-from-right 300ms ease-in-out; }
+      .animation-tab-exit-left { animation: tab-exit-to-left 300ms ease-in-out forwards; }
+      .animation-tab-enter-left { animation: tab-enter-from-left 300ms ease-in-out; }
+      .animation-tab-exit-right { animation: tab-exit-to-right 300ms ease-in-out forwards; }
+
     </style>
 <script type="importmap">
 {

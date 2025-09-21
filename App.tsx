@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { View, FoodItem, CartItem, Order, User, OrderStatus, PaymentMethod, Campaign, SelectedOption } from './types';
 import { sampleFoodItems, samplePastOrders } from './constants';
 import Header from './components/Header';
@@ -40,43 +40,65 @@ const App: React.FC = () => {
     const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
     const [favorites, setFavorites] = useState<Set<number>>(new Set());
     const [itemToCustomize, setItemToCustomize] = useState<FoodItem | null>(null);
-    const [poppingView, setPoppingView] = useState<{ view: View; key: string } | null>(null);
-    const [isPopping, setIsPopping] = useState(false);
+    
+    // --- Navigation State ---
+    const [exitingView, setExitingView] = useState<{ view: View; key: string } | null>(null);
+    const [navState, setNavState] = useState<'idle' | 'pushing' | 'popping' | 'tabbing'>('idle');
+    const [tabDirection, setTabDirection] = useState<'left' | 'right'>('right');
+    const [gesture, setGesture] = useState({ active: false, startX: 0, translateX: 0, completing: false });
+    const mainRef = useRef<HTMLElement>(null);
+    const tabOrder = useMemo(() => [View.Home, View.Offers, View.Favorites, View.Profile], []);
 
     const currentView = viewHistory[viewHistory.length - 1];
 
     const navigateTo = useCallback((view: View) => {
         if (view === viewHistory[viewHistory.length - 1]) return;
-        setIsPopping(false);
+        setNavState('pushing');
         setViewHistory(prev => [...prev, view]);
     }, [viewHistory]);
 
     const handleBackNavigation = useCallback(() => {
         if (viewHistory.length > 1) {
             const viewToPop = viewHistory[viewHistory.length - 1];
-            setPoppingView({ view: viewToPop, key: `${viewToPop}-${Date.now()}` });
-            setIsPopping(true);
+            setExitingView({ view: viewToPop, key: `${viewToPop}-${Date.now()}` });
+            setNavState('popping');
             setViewHistory(prev => prev.slice(0, -1));
             setTimeout(() => {
-                setPoppingView(null);
-                setIsPopping(false);
-            }, 400); // Animation duration
+                setExitingView(null);
+                setNavState('idle');
+            }, 400);
         }
     }, [viewHistory]);
 
     const resetToView = useCallback((view: View) => {
-        setIsPopping(false);
+        setNavState('idle');
         setViewHistory([view]);
     }, []);
     
     const handleTabNavigation = useCallback((view: View) => {
-        if (view === View.Home) {
-            resetToView(View.Home);
-        } else {
-            setIsPopping(false);
-            setViewHistory([View.Home, view]);
+        const fromIndex = tabOrder.indexOf(currentView as View);
+        const toIndex = tabOrder.indexOf(view);
+
+        if (fromIndex === toIndex) return;
+
+        // If navigating from a non-tab view, or indexes are invalid, just reset.
+        if (fromIndex === -1 || toIndex === -1) {
+             if (view === View.Home) resetToView(View.Home);
+             else setViewHistory([View.Home, view]);
+             return;
         }
-    }, [resetToView]);
+
+        const direction = toIndex > fromIndex ? 'right' : 'left';
+        setTabDirection(direction);
+        setExitingView({ view: currentView, key: `${currentView}-${Date.now()}` });
+        setNavState('tabbing');
+        setViewHistory([view]); // Replace history with the new tab view
+
+        setTimeout(() => {
+            setExitingView(null);
+            setNavState('idle');
+        }, 350);
+    }, [currentView, tabOrder, resetToView]);
 
     const toggleFavorite = useCallback((itemId: number) => {
         setFavorites(prev => {
@@ -235,17 +257,49 @@ const App: React.FC = () => {
         setIsToastVisible(true);
     }, [handleBackNavigation]);
 
+    // Gesture Handlers
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (viewHistory.length <= 1 || gesture.active || navState !== 'idle') return;
+        const startX = e.touches[0].clientX;
+        if (startX > 40) return; // Only trigger on left edge
+
+        setGesture({ active: true, startX: startX, translateX: 0, completing: false });
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!gesture.active || gesture.completing) return;
+        const currentX = e.touches[0].clientX;
+        const deltaX = currentX - gesture.startX;
+        if (deltaX >= 0) {
+            setGesture(prev => ({ ...prev, translateX: deltaX }));
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (!gesture.active || gesture.completing) return;
+        const screenWidth = mainRef.current?.offsetWidth || window.innerWidth;
+        const shouldPop = gesture.translateX > screenWidth / 3;
+        const finalTranslateX = shouldPop ? screenWidth : 0;
+        setGesture(prev => ({ ...prev, translateX: finalTranslateX, completing: true }));
+    };
+
+    const handleTransitionEnd = () => {
+        if (gesture.completing) {
+            if (gesture.translateX > 0) { // Pop completed
+                setViewHistory(prev => prev.slice(0, -1));
+            }
+            setGesture({ active: false, startX: 0, translateX: 0, completing: false });
+        }
+    };
+
     useEffect(() => {
         if (!currentOrder || currentOrder.status === OrderStatus.Completed) return;
-
         const statusTransitions = {
             [OrderStatus.Confirmed]: { next: OrderStatus.Preparing, delay: 3000 },
             [OrderStatus.Preparing]: { next: OrderStatus.Delivering, delay: 5000 },
             [OrderStatus.Delivering]: { next: OrderStatus.Completed, delay: 7000 },
         };
-
         const transition = statusTransitions[currentOrder.status];
-
         if (transition) {
             const timer = setTimeout(() => {
                 setCurrentOrder(prev => prev ? { ...prev, status: transition.next } : null);
@@ -256,9 +310,7 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (isToastVisible) {
-            const timer = setTimeout(() => {
-                setIsToastVisible(false);
-            }, 4000);
+            const timer = setTimeout(() => setIsToastVisible(false), 4000);
             return () => clearTimeout(timer);
         }
     }, [isToastVisible]);
@@ -402,69 +454,87 @@ const App: React.FC = () => {
 
     if (!isLoggedIn) {
         switch (currentView) {
-            case View.Register:
-                return <RegisterView onNavigate={navigateTo} />;
-            case View.Verify:
-                return <VerifyView onVerify={handleRegistrationSuccess} onBack={handleBackNavigation} />;
-            case View.ResetPassword:
-                return <ResetPasswordView onNavigate={navigateTo} />;
-            case View.PasswordResetSent:
-                return <PasswordResetSentView onNavigate={navigateTo} />;
-            case View.Login:
-            default:
-                return <LoginView onLogin={handleLogin} onNavigate={navigateTo} />;
+            case View.Register: return <RegisterView onNavigate={navigateTo} />;
+            case View.Verify: return <VerifyView onVerify={handleRegistrationSuccess} onBack={handleBackNavigation} />;
+            case View.ResetPassword: return <ResetPasswordView onNavigate={navigateTo} />;
+            case View.PasswordResetSent: return <PasswordResetSentView onNavigate={navigateTo} />;
+            case View.Login: default: return <LoginView onLogin={handleLogin} onNavigate={navigateTo} />;
         }
     }
 
-    const viewsWithChrome: View[] = [
-        View.Home, View.Offers, View.Favorites, View.Profile, View.Cart, 
-        View.Notifications, View.Loyalty, View.PaymentMethods, View.FAQs, View.Feedback, View.OrderHistory
-    ];
+    const viewsWithChrome = [View.Home, View.Offers, View.Favorites, View.Profile, View.Cart, View.Notifications, View.Loyalty, View.PaymentMethods, View.FAQs, View.Feedback, View.OrderHistory];
     const showChrome = viewsWithChrome.includes(currentView);
+    const isGesturing = gesture.active;
 
-
+    // --- Screen rendering logic ---
+    const getAnimationClass = () => {
+        if (navState === 'popping') return 'animation-pop-enter';
+        if (navState === 'pushing') return 'animation-push-enter';
+        if (navState === 'tabbing') return tabDirection === 'right' ? 'animation-tab-enter-right' : 'animation-tab-enter-left';
+        return '';
+    };
+    
+    const getExitingAnimationClass = () => {
+        if (navState === 'popping') return 'animation-pop-exit';
+        if (navState === 'tabbing') return tabDirection === 'right' ? 'animation-tab-exit-left' : 'animation-tab-exit-right';
+        return 'animation-push-exit';
+    };
+    
+    const screenWidth = mainRef.current?.offsetWidth || 0;
+    const gestureProgress = screenWidth > 0 ? Math.min(1, gesture.translateX / screenWidth) : 0;
+    
     return (
-        <div 
-            className="h-full flex flex-col bg-gray-100/90 font-sans"
-        >
-            {showChrome && <Header
-                cartItemCount={cart.reduce((count, item) => count + item.quantity, 0)}
-                onCartClick={() => navigateTo(View.Cart)}
-                onHomeClick={() => resetToView(View.Home)}
-            />}
-            <main className={`flex-grow overflow-hidden relative ${showChrome ? 'pt-16 pb-16' : ''}`}>
+        <div className="h-full flex flex-col bg-gray-100/90 font-sans">
+            {showChrome && <Header cartItemCount={cart.reduce((count, item) => count + item.quantity, 0)} onCartClick={() => navigateTo(View.Cart)} onHomeClick={() => resetToView(View.Home)} />}
+            
+            <main 
+                ref={mainRef}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                className={`flex-grow overflow-hidden relative ${showChrome ? 'pt-16 pb-16' : ''}`}
+            >
                 <div className="w-full h-full relative">
-                    {/* Screen that is underneath the top-most one. */}
-                    {/* On push, it is covered. On pop, it is revealed. */}
+                    {/* Current Screen (Top) */}
                     <div
                         key={currentView}
-                        className={`view-screen ${isPopping ? 'animation-pop-enter' : (viewHistory.length > 1 ? 'animation-push-enter' : '')}`}
-                        style={{ zIndex: 10 }}
+                        className={`view-screen ${!isGesturing ? getAnimationClass() : ''}`}
+                        style={{ 
+                            zIndex: 10,
+                            ...(isGesturing && { 
+                                transform: `translateX(${gesture.translateX}px)`,
+                                transition: gesture.completing ? 'transform 0.25s ease-out' : 'none'
+                            })
+                        }}
+                        onTransitionEnd={handleTransitionEnd}
                     >
-                         <div className="h-full overflow-y-auto scrollbar-hide">
-                            {renderView(currentView)}
-                        </div>
+                         <div className="h-full overflow-y-auto scrollbar-hide">{renderView(currentView)}</div>
                     </div>
 
-                    {/* Screen being popped away */}
-                    {poppingView &&
+                    {/* Exiting Screen (Animating Out) */}
+                    {exitingView && !isGesturing &&
                         <div
-                            key={poppingView.key}
-                            className="view-screen animation-pop-exit"
+                            key={exitingView.key}
+                            className={`view-screen ${getExitingAnimationClass()}`}
                             style={{ zIndex: 15 }}
                         >
-                             <div className="h-full overflow-y-auto scrollbar-hide">
-                                {renderView(poppingView.view)}
-                            </div>
+                             <div className="h-full overflow-y-auto scrollbar-hide">{renderView(exitingView.view)}</div>
                         </div>
                     }
                     
-                    {/* Screen being covered on push */}
-                    {viewHistory.length > 1 && !isPopping &&
+                    {/* Screen underneath (Revealed on push/pop/gesture) */}
+                    {viewHistory.length > 1 &&
                         <div
                             key={viewHistory[viewHistory.length - 2]}
-                            className="view-screen animation-push-exit"
-                            style={{ zIndex: 5 }}
+                            className={`view-screen ${!isGesturing && navState === 'pushing' ? 'animation-push-exit' : ''}`}
+                            style={{ 
+                                zIndex: 5,
+                                ...(isGesturing && {
+                                    transform: `translateX(${-30 * (1 - gestureProgress)}%)`,
+                                    opacity: 0.5 + (0.5 * gestureProgress),
+                                    transition: gesture.completing ? 'transform 0.25s ease-out, opacity 0.25s ease-out' : 'none'
+                                })
+                            }}
                         >
                             <div className="h-full overflow-y-auto scrollbar-hide">
                                 {renderView(viewHistory[viewHistory.length - 2])}
@@ -473,32 +543,18 @@ const App: React.FC = () => {
                     }
                 </div>
             </main>
+
             {showChrome && <BottomNavBar currentView={currentView} onNavigate={handleTabNavigation} />}
-            <CustomizationModal
-                isOpen={!!itemToCustomize}
-                item={itemToCustomize}
-                onClose={() => setItemToCustomize(null)}
-                onAddToCart={confirmAddToCart}
-            />
+            <CustomizationModal isOpen={!!itemToCustomize} item={itemToCustomize} onClose={() => setItemToCustomize(null)} onAddToCart={confirmAddToCart} />
+            
             {isToastVisible && (
-                <div
-                    role="alert"
-                    aria-live="assertive"
-                    className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg z-[100] flex items-center justify-between min-w-[340px] max-w-md toast-animate"
-                >
+                <div role="alert" aria-live="assertive" className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg z-[100] flex items-center justify-between min-w-[340px] max-w-md toast-animate">
                     <div className="flex items-center">
                         <i className={`fas ${toastMessage.includes("yêu thích") ? 'fa-heart text-red-400' : 'fa-check-circle text-green-400'} mr-3`}></i>
                         <span className="font-medium">{toastMessage}</span>
                     </div>
                     {currentView !== View.Cart && toastMessage.includes("giỏ hàng") &&
-                        <button
-                            onClick={() => {
-                                navigateTo(View.Cart);
-                                setIsToastVisible(false);
-                            }}
-                            className="ml-4 font-bold text-red-400 hover:text-red-300 transition-colors whitespace-nowrap"
-                            aria-label="Xem giỏ hàng"
-                        >
+                        <button onClick={() => { navigateTo(View.Cart); setIsToastVisible(false); }} className="ml-4 font-bold text-red-400 hover:text-red-300 transition-colors whitespace-nowrap" aria-label="Xem giỏ hàng">
                             Xem giỏ hàng
                         </button>
                     }
