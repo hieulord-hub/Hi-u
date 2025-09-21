@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { CartItem, User, Voucher } from '../types';
 import { sampleVouchers } from '../constants';
@@ -103,12 +104,16 @@ const PaymentView: React.FC<PaymentViewProps> = ({ cartItems, placeOrder, user, 
         setCardInfo(prev => ({ ...prev, [name]: value }));
     };
 
-    const subtotal = useMemo(() => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0), [cartItems]);
+    const calculateItemTotal = (item: CartItem) => {
+        const optionsPrice = item.selectedOptions.reduce((sum, opt) => sum + opt.choicePrice, 0);
+        return (item.price + optionsPrice) * item.quantity;
+    };
+
+    const subtotal = useMemo(() => cartItems.reduce((sum, item) => sum + calculateItemTotal(item), 0), [cartItems]);
 
     const discount = useMemo(() => {
         if (!selectedVoucher) return 0;
         
-        // Double-check eligibility in case cart changed after applying
         const isEligible = 
             (!selectedVoucher.minOrder || subtotal >= selectedVoucher.minOrder) &&
             (!selectedVoucher.applicableItemId || cartItems.some(item => item.id === selectedVoucher.applicableItemId));
@@ -129,7 +134,6 @@ const PaymentView: React.FC<PaymentViewProps> = ({ cartItems, placeOrder, user, 
     
     const finalTotal = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
     
-     // Auto remove voucher if it becomes invalid
     useEffect(() => {
         if (!selectedVoucher) return;
 
@@ -139,7 +143,6 @@ const PaymentView: React.FC<PaymentViewProps> = ({ cartItems, placeOrder, user, 
 
         if (!isStillEligible) {
             setSelectedVoucher(null);
-            // In a real app, you might want to show a toast message here
         }
     }, [subtotal, cartItems, selectedVoucher]);
     
@@ -179,9 +182,16 @@ const PaymentView: React.FC<PaymentViewProps> = ({ cartItems, placeOrder, user, 
                      <h3 className="text-lg font-semibold text-gray-700 mb-2">Tóm tắt đơn hàng</h3>
                       <div className="bg-gray-50 p-4 rounded-lg space-y-3">
                         {cartItems.map(item => (
-                            <div key={item.id} className="flex justify-between items-center">
-                                <span className="text-gray-600">{item.quantity} x {item.name}</span>
-                                <span className="font-medium text-gray-800">{(item.price * item.quantity).toLocaleString('vi-VN')}đ</span>
+                            <div key={item.cartItemId} className="flex justify-between items-center">
+                                <div>
+                                    <span className="text-gray-600">{item.quantity} x {item.name}</span>
+                                    {item.selectedOptions.length > 0 && (
+                                        <p className="text-xs text-gray-500">
+                                            {item.selectedOptions.map(opt => opt.choiceName).join(', ')}
+                                        </p>
+                                    )}
+                                </div>
+                                <span className="font-medium text-gray-800">{calculateItemTotal(item).toLocaleString('vi-VN')}đ</span>
                             </div>
                         ))}
                       </div>

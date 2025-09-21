@@ -4,13 +4,19 @@ import { CartItem, View } from '../types';
 
 interface CartViewProps {
     cartItems: CartItem[];
-    updateCartQuantity: (itemId: number, quantity: number) => void;
+    updateCartQuantity: (cartItemId: string, quantity: number) => void;
     onCheckout: () => void;
     onNavigate: (view: View) => void;
 }
 
 const CartView: React.FC<CartViewProps> = ({ cartItems, updateCartQuantity, onCheckout, onNavigate }) => {
-    const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    
+    const calculateItemTotal = (item: CartItem) => {
+        const optionsPrice = item.selectedOptions.reduce((sum, opt) => sum + opt.choicePrice, 0);
+        return (item.price + optionsPrice) * item.quantity;
+    };
+
+    const total = cartItems.reduce((sum, item) => sum + calculateItemTotal(item), 0);
 
     return (
         <div className="p-4 max-w-4xl mx-auto">
@@ -32,24 +38,29 @@ const CartView: React.FC<CartViewProps> = ({ cartItems, updateCartQuantity, onCh
                     {/* Cart Items */}
                     <div className="md:col-span-2 space-y-4">
                         {cartItems.map(item => (
-                            <div key={item.id} className="flex bg-white p-4 rounded-lg shadow-md items-start relative transition-shadow duration-300 hover:shadow-xl">
+                            <div key={item.cartItemId} className="flex bg-white p-4 rounded-lg shadow-md items-start relative transition-shadow duration-300 hover:shadow-xl">
                                 <img src={item.imageUrls[0]} alt={item.name} className="w-24 h-24 rounded-md object-cover mr-4" />
-                                <div className="flex-grow flex flex-col justify-between h-24">
-                                    <div>
-                                        <h3 className="font-bold text-lg text-gray-800 leading-tight pr-8">{item.name}</h3>
-                                        <p className="text-red-600 font-semibold text-md mt-1">{item.price.toLocaleString('vi-VN')}đ</p>
-                                    </div>
+                                <div className="flex-grow">
+                                    <h3 className="font-bold text-lg text-gray-800 leading-tight pr-8">{item.name}</h3>
+                                    {item.selectedOptions.length > 0 && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            {item.selectedOptions.map(opt => opt.choiceName).join(', ')}
+                                        </p>
+                                    )}
+                                    <p className="text-red-600 font-semibold text-md my-2">
+                                        {calculateItemTotal(item).toLocaleString('vi-VN')}đ
+                                    </p>
                                     <div className="flex items-center space-x-2 border border-gray-200 rounded-full p-1 w-fit">
-                                        <button onClick={() => updateCartQuantity(item.id, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Giảm số lượng">
+                                        <button onClick={() => updateCartQuantity(item.cartItemId, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Giảm số lượng">
                                             <i className="fas fa-minus"></i>
                                         </button>
                                         <span className="font-bold w-8 text-center text-gray-800" aria-live="polite">{item.quantity}</span>
-                                        <button onClick={() => updateCartQuantity(item.id, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Tăng số lượng">
+                                        <button onClick={() => updateCartQuantity(item.cartItemId, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Tăng số lượng">
                                             <i className="fas fa-plus"></i>
                                         </button>
                                     </div>
                                 </div>
-                                <button onClick={() => updateCartQuantity(item.id, 0)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50" aria-label={`Xóa ${item.name} khỏi giỏ hàng`}>
+                                <button onClick={() => updateCartQuantity(item.cartItemId, 0)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50" aria-label={`Xóa ${item.name} khỏi giỏ hàng`}>
                                     <i className="fas fa-trash-alt"></i>
                                 </button>
                             </div>

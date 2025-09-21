@@ -203,4 +203,25 @@ const HomeView: React.FC<HomeViewProps> = ({ foodItems, addToCart, onViewProduct
                             {paginatedItems.map(item => (
                                 <FoodItemCard 
                                     key={item.id} 
-                                    item={
+                                    item={item} 
+                                    onAddToCart={addToCart} 
+                                    onViewDetails={onViewProduct} 
+                                    isFavorite={favorites.has(item.id)} 
+                                    onToggleFavorite={onToggleFavorite}
+                                />
+                            ))}
+                        </div>
+                        {renderPagination()}
+                    </>
+                ) : (
+                    <div className="text-center py-10">
+                        <i className="fas fa-folder-open text-6xl text-gray-300 mb-4"></i>
+                        <p className="text-gray-500">Không có món ăn nào trong danh mục này.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default HomeView;
