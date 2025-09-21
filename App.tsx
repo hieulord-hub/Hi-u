@@ -52,12 +52,13 @@ const App: React.FC = () => {
     const currentView = viewHistory[viewHistory.length - 1];
 
     const navigateTo = useCallback((view: View) => {
-        if (view === viewHistory[viewHistory.length - 1]) return;
+        if (view === viewHistory[viewHistory.length - 1] || gesture.active) return;
         setNavState('pushing');
         setViewHistory(prev => [...prev, view]);
-    }, [viewHistory]);
+    }, [viewHistory, gesture.active]);
 
     const handleBackNavigation = useCallback(() => {
+        if (gesture.active) return;
         if (viewHistory.length > 1) {
             const viewToPop = viewHistory[viewHistory.length - 1];
             setExitingView({ view: viewToPop, key: `${viewToPop}-${Date.now()}` });
@@ -68,7 +69,7 @@ const App: React.FC = () => {
                 setNavState('idle');
             }, 400);
         }
-    }, [viewHistory]);
+    }, [viewHistory, gesture.active]);
 
     const resetToView = useCallback((view: View) => {
         setNavState('idle');
@@ -76,15 +77,16 @@ const App: React.FC = () => {
     }, []);
     
     const handleTabNavigation = useCallback((view: View) => {
+        if (gesture.active) return;
+        
         const fromIndex = tabOrder.indexOf(currentView as View);
         const toIndex = tabOrder.indexOf(view);
 
         if (fromIndex === toIndex) return;
 
-        // If navigating from a non-tab view, or indexes are invalid, just reset.
+        // If navigating from a non-tab view, or indexes are invalid, just reset to the tab's root view.
         if (fromIndex === -1 || toIndex === -1) {
-             if (view === View.Home) resetToView(View.Home);
-             else setViewHistory([View.Home, view]);
+             resetToView(view);
              return;
         }
 
@@ -98,7 +100,7 @@ const App: React.FC = () => {
             setExitingView(null);
             setNavState('idle');
         }, 350);
-    }, [currentView, tabOrder, resetToView]);
+    }, [currentView, tabOrder, resetToView, gesture.active]);
 
     const toggleFavorite = useCallback((itemId: number) => {
         setFavorites(prev => {
