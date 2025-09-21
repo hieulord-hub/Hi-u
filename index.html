@@ -68,32 +68,14 @@
         to { transform: translateX(0); }
       }
       @keyframes push-exit {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(-30%); opacity: 0.5; }
+        from { transform: translateX(0); }
+        to { transform: translateX(-30%); }
       }
       @keyframes pop-enter {
-        from { transform: translateX(-30%); opacity: 0.5; }
-        to { transform: translateX(0); opacity: 1; }
+        from { transform: translateX(-30%); }
+        to { transform: translateX(0); }
       }
       @keyframes pop-exit {
-        from { transform: translateX(0); }
-        to { transform: translateX(100%); }
-      }
-
-      /* --- Tab Navigation Animations --- */
-      @keyframes tab-enter-from-right {
-        from { transform: translateX(100%); }
-        to { transform: translateX(0); }
-      }
-      @keyframes tab-exit-to-left {
-        from { transform: translateX(0); }
-        to { transform: translateX(-100%); }
-      }
-      @keyframes tab-enter-from-left {
-        from { transform: translateX(-100%); }
-        to { transform: translateX(0); }
-      }
-      @keyframes tab-exit-to-right {
         from { transform: translateX(0); }
         to { transform: translateX(100%); }
       }
@@ -106,15 +88,10 @@
         will-change: transform, opacity;
       }
 
-      .animation-push-enter { animation: push-enter 350ms ease-in-out; }
-      .animation-push-exit { animation: push-exit 350ms ease-in-out forwards; }
-      .animation-pop-enter { animation: pop-enter 350ms ease-in-out; }
-      .animation-pop-exit { animation: pop-exit 350ms ease-in-out forwards; }
-      
-      .animation-tab-enter-right { animation: tab-enter-from-right 300ms ease-in-out; }
-      .animation-tab-exit-left { animation: tab-exit-to-left 300ms ease-in-out forwards; }
-      .animation-tab-enter-left { animation: tab-enter-from-left 300ms ease-in-out; }
-      .animation-tab-exit-right { animation: tab-exit-to-right 300ms ease-in-out forwards; }
+      .animation-push-enter { animation: push-enter 300ms ease-in-out forwards; }
+      .animation-push-exit { animation: push-exit 300ms ease-in-out forwards; }
+      .animation-pop-enter { animation: pop-enter 300ms ease-in-out forwards; }
+      .animation-pop-exit { animation: pop-exit 300ms ease-in-out forwards; }
 
     </style>
 <script type="importmap">
