@@ -45,31 +45,37 @@ const App: React.FC = () => {
     const [exitingView, setExitingView] = useState<{ view: View; key: string } | null>(null);
     const [navState, setNavState] = useState<'idle' | 'pushing' | 'popping' | 'tabbing'>('idle');
     const [tabDirection, setTabDirection] = useState<'left' | 'right'>('right');
-    const [gesture, setGesture] = useState({ active: false, startX: 0, translateX: 0, completing: false });
-    const mainRef = useRef<HTMLElement>(null);
     const tabOrder = useMemo(() => [View.Home, View.Offers, View.Favorites, View.Profile], []);
+
+    // --- Swipe Back Gesture State ---
+    const [isSwiping, setIsSwiping] = useState(false);
+    const [swipeTranslateX, setSwipeTranslateX] = useState(0);
+    const [isSwipePop, setIsSwipePop] = useState(false);
+    const touchStartX = useRef(0);
+    const mainRef = useRef<HTMLDivElement>(null);
 
     const currentView = viewHistory[viewHistory.length - 1];
 
     const navigateTo = useCallback((view: View) => {
-        if (view === viewHistory[viewHistory.length - 1] || gesture.active) return;
+        if (isSwiping || view === viewHistory[viewHistory.length - 1]) return;
         setNavState('pushing');
         setViewHistory(prev => [...prev, view]);
-    }, [viewHistory, gesture.active]);
+    }, [viewHistory, isSwiping]);
 
     const handleBackNavigation = useCallback(() => {
-        if (gesture.active) return;
-        if (viewHistory.length > 1) {
-            const viewToPop = viewHistory[viewHistory.length - 1];
-            setExitingView({ view: viewToPop, key: `${viewToPop}-${Date.now()}` });
-            setNavState('popping');
-            setViewHistory(prev => prev.slice(0, -1));
-            setTimeout(() => {
-                setExitingView(null);
-                setNavState('idle');
-            }, 400);
-        }
-    }, [viewHistory, gesture.active]);
+        if (isSwiping || viewHistory.length <= 1) return;
+
+        const viewToPop = viewHistory[viewHistory.length - 1];
+        setExitingView({ view: viewToPop, key: `${viewToPop}-${Date.now()}` });
+        setNavState('popping');
+        setViewHistory(prev => prev.slice(0, -1));
+        setTimeout(() => {
+            setExitingView(null);
+            setNavState('idle');
+            setIsSwipePop(false); // Clean up swipe pop state
+        }, 400);
+
+    }, [viewHistory, isSwiping]);
 
     const resetToView = useCallback((view: View) => {
         setNavState('idle');
@@ -77,15 +83,14 @@ const App: React.FC = () => {
     }, []);
     
     const handleTabNavigation = useCallback((view: View) => {
-        if (gesture.active) return;
-        
+        if (isSwiping) return;
+
         const fromIndex = tabOrder.indexOf(currentView as View);
         const toIndex = tabOrder.indexOf(view);
 
         if (fromIndex === toIndex) return;
-
-        // If navigating from a non-tab view, or indexes are invalid, just reset to the tab's root view.
-        if (fromIndex === -1 || toIndex === -1) {
+        
+        if (fromIndex === -1 || toIndex === -1 || !tabOrder.includes(viewHistory[viewHistory.length - 2])) {
              resetToView(view);
              return;
         }
@@ -94,13 +99,42 @@ const App: React.FC = () => {
         setTabDirection(direction);
         setExitingView({ view: currentView, key: `${currentView}-${Date.now()}` });
         setNavState('tabbing');
-        setViewHistory([view]); // Replace history with the new tab view
+        setViewHistory(prev => [...prev.slice(0, -2), view]); // Go back and then to the new tab
 
         setTimeout(() => {
             setExitingView(null);
             setNavState('idle');
         }, 350);
-    }, [currentView, tabOrder, resetToView, gesture.active]);
+    }, [currentView, tabOrder, resetToView, viewHistory, isSwiping]);
+
+    // --- Swipe Gesture Handlers ---
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        if (navState !== 'idle' || viewHistory.length <= 1 || e.touches[0].clientX > 40) return;
+        touchStartX.current = e.touches[0].clientX;
+        setIsSwiping(true);
+    }, [navState, viewHistory.length]);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+        if (!isSwiping) return;
+        const offset = e.touches[0].clientX - touchStartX.current;
+        setSwipeTranslateX(Math.max(0, offset));
+    }, [isSwiping]);
+
+    const handleTouchEnd = useCallback(() => {
+        if (!isSwiping) return;
+        
+        const screenWidth = mainRef.current?.offsetWidth || window.innerWidth;
+        const threshold = screenWidth * 0.4;
+
+        if (swipeTranslateX > threshold) {
+            setIsSwipePop(true);
+            handleBackNavigation();
+        }
+
+        setIsSwiping(false);
+        setSwipeTranslateX(0);
+
+    }, [isSwiping, swipeTranslateX, handleBackNavigation]);
 
     const toggleFavorite = useCallback((itemId: number) => {
         setFavorites(prev => {
@@ -258,41 +292,6 @@ const App: React.FC = () => {
         setToastMessage('Cập nhật thông tin thành công!');
         setIsToastVisible(true);
     }, [handleBackNavigation]);
-
-    // Gesture Handlers
-    const handleTouchStart = (e: React.TouchEvent) => {
-        if (viewHistory.length <= 1 || gesture.active || navState !== 'idle') return;
-        const startX = e.touches[0].clientX;
-        if (startX > 40) return; // Only trigger on left edge
-
-        setGesture({ active: true, startX: startX, translateX: 0, completing: false });
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        if (!gesture.active || gesture.completing) return;
-        const currentX = e.touches[0].clientX;
-        const deltaX = currentX - gesture.startX;
-        if (deltaX >= 0) {
-            setGesture(prev => ({ ...prev, translateX: deltaX }));
-        }
-    };
-
-    const handleTouchEnd = () => {
-        if (!gesture.active || gesture.completing) return;
-        const screenWidth = mainRef.current?.offsetWidth || window.innerWidth;
-        const shouldPop = gesture.translateX > screenWidth / 3;
-        const finalTranslateX = shouldPop ? screenWidth : 0;
-        setGesture(prev => ({ ...prev, translateX: finalTranslateX, completing: true }));
-    };
-
-    const handleTransitionEnd = () => {
-        if (gesture.completing) {
-            if (gesture.translateX > 0) { // Pop completed
-                setViewHistory(prev => prev.slice(0, -1));
-            }
-            setGesture({ active: false, startX: 0, translateX: 0, completing: false });
-        }
-    };
 
     useEffect(() => {
         if (!currentOrder || currentOrder.status === OrderStatus.Completed) return;
@@ -466,55 +465,72 @@ const App: React.FC = () => {
 
     const viewsWithChrome = [View.Home, View.Offers, View.Favorites, View.Profile, View.Cart, View.Notifications, View.Loyalty, View.PaymentMethods, View.FAQs, View.Feedback, View.OrderHistory];
     const showChrome = viewsWithChrome.includes(currentView);
-    const isGesturing = gesture.active;
 
     // --- Screen rendering logic ---
-    const getAnimationClass = () => {
-        if (navState === 'popping') return 'animation-pop-enter';
-        if (navState === 'pushing') return 'animation-push-enter';
-        if (navState === 'tabbing') return tabDirection === 'right' ? 'animation-tab-enter-right' : 'animation-tab-enter-left';
+    const getAnimationClass = (view: View) => {
+        if (navState === 'pushing' && view === currentView) return 'animation-push-enter';
+        if (navState === 'popping' && view !== exitingView?.view) {
+            // Differentiate between button pop and swipe pop for enter animation
+            return isSwipePop ? 'animation-swipe-enter' : 'animation-pop-enter';
+        }
+        if (navState === 'tabbing' && view === currentView) {
+            return tabDirection === 'right' ? 'animation-tab-enter-right' : 'animation-tab-enter-left';
+        }
         return '';
     };
-    
+
     const getExitingAnimationClass = () => {
-        if (navState === 'popping') return 'animation-pop-exit';
-        if (navState === 'tabbing') return tabDirection === 'right' ? 'animation-tab-exit-left' : 'animation-tab-exit-right';
+        if (navState === 'popping') {
+            // Differentiate between button pop and swipe pop for exit animation
+            return isSwipePop ? 'animation-swipe-exit' : 'animation-pop-exit';
+        }
+        if (navState === 'tabbing') {
+            return tabDirection === 'right' ? 'animation-tab-exit-left' : 'animation-tab-exit-right';
+        }
         return 'animation-push-exit';
     };
-    
-    const screenWidth = mainRef.current?.offsetWidth || 0;
-    const gestureProgress = screenWidth > 0 ? Math.min(1, gesture.translateX / screenWidth) : 0;
-    
+
+    const isGesturing = isSwiping || swipeTranslateX > 0;
+    const screenWidth = mainRef.current?.offsetWidth || window.innerWidth;
+
+    const getSwipeStyle = (isTopView: boolean): React.CSSProperties => {
+        if (!isGesturing) return {};
+
+        const progress = swipeTranslateX / screenWidth;
+        const tx = isTopView ? swipeTranslateX : -screenWidth * 0.3 + swipeTranslateX * 0.3;
+        const opacity = isTopView ? 1 : 0.5 + progress * 0.5;
+
+        return {
+            transform: `translateX(${tx}px)`,
+            opacity: opacity,
+            transition: isSwiping ? 'none' : 'transform 300ms ease-out, opacity 300ms ease-out',
+        };
+    };
+
+
     return (
         <div className="h-full flex flex-col bg-gray-100/90 font-sans">
             {showChrome && <Header cartItemCount={cart.reduce((count, item) => count + item.quantity, 0)} onCartClick={() => navigateTo(View.Cart)} onHomeClick={() => resetToView(View.Home)} />}
             
             <main 
                 ref={mainRef}
+                className={`flex-grow overflow-hidden relative ${showChrome ? 'pt-16 pb-16' : ''}`}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                className={`flex-grow overflow-hidden relative ${showChrome ? 'pt-16 pb-16' : ''}`}
             >
                 <div className="w-full h-full relative">
                     {/* Current Screen (Top) */}
                     <div
                         key={currentView}
-                        className={`view-screen ${!isGesturing ? getAnimationClass() : ''}`}
-                        style={{ 
-                            zIndex: 10,
-                            ...(isGesturing && { 
-                                transform: `translateX(${gesture.translateX}px)`,
-                                transition: gesture.completing ? 'transform 0.25s ease-out' : 'none'
-                            })
-                        }}
-                        onTransitionEnd={handleTransitionEnd}
+                        className={`view-screen ${isGesturing ? '' : getAnimationClass(currentView)}`}
+                        style={{ zIndex: 10, ...getSwipeStyle(true) }}
                     >
                          <div className="h-full overflow-y-auto scrollbar-hide">{renderView(currentView)}</div>
                     </div>
 
                     {/* Exiting Screen (Animating Out) */}
-                    {exitingView && !isGesturing &&
+                    {exitingView &&
                         <div
                             key={exitingView.key}
                             className={`view-screen ${getExitingAnimationClass()}`}
@@ -524,19 +540,12 @@ const App: React.FC = () => {
                         </div>
                     }
                     
-                    {/* Screen underneath (Revealed on push/pop/gesture) */}
+                    {/* Screen underneath (Revealed on push/pop/swipe) */}
                     {viewHistory.length > 1 &&
                         <div
                             key={viewHistory[viewHistory.length - 2]}
-                            className={`view-screen ${!isGesturing && navState === 'pushing' ? 'animation-push-exit' : ''}`}
-                            style={{ 
-                                zIndex: 5,
-                                ...(isGesturing && {
-                                    transform: `translateX(${-30 * (1 - gestureProgress)}%)`,
-                                    opacity: 0.5 + (0.5 * gestureProgress),
-                                    transition: gesture.completing ? 'transform 0.25s ease-out, opacity 0.25s ease-out' : 'none'
-                                })
-                            }}
+                            className={`view-screen ${isGesturing ? '' : navState === 'pushing' ? 'animation-push-exit' : ''}`}
+                            style={{ zIndex: 5, ...getSwipeStyle(false) }}
                         >
                             <div className="h-full overflow-y-auto scrollbar-hide">
                                 {renderView(viewHistory[viewHistory.length - 2])}
