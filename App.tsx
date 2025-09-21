@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, FoodItem, CartItem, Order, User, OrderStatus, PaymentMethod, Campaign } from './types';
+import { View, FoodItem, CartItem, Order, User, OrderStatus, PaymentMethod, Campaign, SelectedOption } from './types';
 import { sampleFoodItems, samplePastOrders } from './constants';
 import Header from './components/Header';
 import LoginView from './components/LoginView';
@@ -22,6 +22,10 @@ import OfferDetailView from './components/OfferDetailView';
 import FoodItemCard from './components/FoodItemCard';
 import OrderHistoryView from './components/OrderHistoryView';
 import EditProfileView from './components/EditProfileView';
+import ResetPasswordView from './components/ResetPasswordView';
+import PasswordResetSentView from './components/PasswordResetSentView';
+import SearchView from './components/SearchView';
+import CustomizationModal from './components/CustomizationModal';
 
 const App: React.FC = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -35,6 +39,7 @@ const App: React.FC = () => {
     const [selectedFoodItem, setSelectedFoodItem] = useState<FoodItem | null>(null);
     const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
     const [favorites, setFavorites] = useState<Set<number>>(new Set());
+    const [itemToCustomize, setItemToCustomize] = useState<FoodItem | null>(null);
 
     const toggleFavorite = useCallback((itemId: number) => {
         setFavorites(prev => {
@@ -83,19 +88,44 @@ const App: React.FC = () => {
         setCurrentView(View.Login);
     }, []);
 
-    const addToCart = useCallback((item: FoodItem) => {
+    const confirmAddToCart = useCallback((item: FoodItem, quantity: number, selectedOptions: SelectedOption[]) => {
+        const optionsIdentifier = selectedOptions.map(o => `${o.optionTitle}:${o.choiceName}`).sort().join(',');
+
         setCart(prevCart => {
-            const existingItem = prevCart.find(cartItem => cartItem.id === item.id);
+            const existingItem = prevCart.find(cartItem => {
+                if (cartItem.id !== item.id) return false;
+                const existingOptionsIdentifier = cartItem.selectedOptions.map(o => `${o.optionTitle}:${o.choiceName}`).sort().join(',');
+                return optionsIdentifier === existingOptionsIdentifier;
+            });
+
             if (existingItem) {
                 return prevCart.map(cartItem =>
-                    cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem
+                    cartItem.cartItemId === existingItem.cartItemId ? { ...cartItem, quantity: cartItem.quantity + quantity } : cartItem
                 );
+            } else {
+                const newItem: CartItem = {
+                    ...item,
+                    cartItemId: `${item.id}-${optionsIdentifier}-${Date.now()}`,
+                    quantity,
+                    selectedOptions,
+                };
+                return [...prevCart, newItem];
             }
-            return [...prevCart, { ...item, quantity: 1 }];
         });
+
+        setItemToCustomize(null);
         setToastMessage(`Đã thêm "${item.name}" vào giỏ hàng!`);
         setIsToastVisible(true);
     }, []);
+
+
+    const handleRequestAddToCart = useCallback((item: FoodItem) => {
+        if (item.options && item.options.length > 0) {
+            setItemToCustomize(item);
+        } else {
+            confirmAddToCart(item, 1, []);
+        }
+    }, [confirmAddToCart]);
 
     const handleViewProduct = useCallback((item: FoodItem) => {
         setSelectedFoodItem(item);
@@ -107,12 +137,12 @@ const App: React.FC = () => {
         setCurrentView(View.OfferDetail);
     }, []);
 
-    const updateCartQuantity = useCallback((itemId: number, quantity: number) => {
+    const updateCartQuantity = useCallback((cartItemId: string, quantity: number) => {
         setCart(prevCart => {
             if (quantity <= 0) {
-                return prevCart.filter(item => item.id !== itemId);
+                return prevCart.filter(item => item.cartItemId !== cartItemId);
             }
-            return prevCart.map(item => item.id === itemId ? { ...item, quantity } : item);
+            return prevCart.map(item => item.cartItemId === cartItemId ? { ...item, quantity } : item);
         });
     }, []);
 
@@ -130,7 +160,6 @@ const App: React.FC = () => {
     const placeOrder = useCallback((paymentMethod: string, note: string, total: number, discount: number, finalTotal: number) => {
         if (cart.length === 0) return;
         
-        // Add the previous completed order to history before creating a new one
         if (currentOrder && currentOrder.status === OrderStatus.Completed) {
              setOrderHistory(prev => [currentOrder, ...prev]);
         }
@@ -157,8 +186,6 @@ const App: React.FC = () => {
     }, [cart, clearCart, currentOrder]);
 
     const handleRatingSubmit = useCallback(() => {
-        // In a real app, you would send the rating to a server.
-        // For this prototype, we'll just show a confirmation and navigate home.
         setToastMessage('Cảm ơn bạn đã đánh giá!');
         setIsToastVisible(true);
         setCurrentView(View.Home);
@@ -194,7 +221,7 @@ const App: React.FC = () => {
         if (isToastVisible) {
             const timer = setTimeout(() => {
                 setIsToastVisible(false);
-            }, 4000); // Hide after 4 seconds
+            }, 4000);
             return () => clearTimeout(timer);
         }
     }, [isToastVisible]);
@@ -202,11 +229,20 @@ const App: React.FC = () => {
     const renderView = () => {
         switch (currentView) {
             case View.Home:
-                return <HomeView foodItems={sampleFoodItems} addToCart={addToCart} onViewProduct={handleViewProduct} onViewCampaign={handleViewCampaign} favorites={favorites} onToggleFavorite={toggleFavorite} />;
+                return <HomeView foodItems={sampleFoodItems} addToCart={handleRequestAddToCart} onViewProduct={handleViewProduct} onViewCampaign={handleViewCampaign} favorites={favorites} onToggleFavorite={toggleFavorite} onNavigate={setCurrentView} />;
+            case View.Search:
+                return <SearchView 
+                    foodItems={sampleFoodItems}
+                    addToCart={handleRequestAddToCart}
+                    onViewProduct={handleViewProduct}
+                    favorites={favorites}
+                    onToggleFavorite={toggleFavorite}
+                    onBack={() => setCurrentView(View.Home)}
+                />;
             case View.ProductDetail:
                 return <ProductDetailView
                     item={selectedFoodItem}
-                    onAddToCart={addToCart}
+                    onAddToCart={handleRequestAddToCart}
                     onBack={() => setCurrentView(View.Home)}
                     foodItems={sampleFoodItems}
                     onViewProduct={handleViewProduct}
@@ -214,7 +250,7 @@ const App: React.FC = () => {
                     onToggleFavorite={toggleFavorite}
                 />;
             case View.Cart:
-                return <CartView cartItems={cart} updateCartQuantity={updateCartQuantity} onCheckout={() => setCurrentView(View.Payment)} />;
+                return <CartView cartItems={cart} updateCartQuantity={updateCartQuantity} onCheckout={() => setCurrentView(View.Payment)} onNavigate={setCurrentView} />;
             case View.Payment:
                 return <PaymentView
                     cartItems={cart}
@@ -257,7 +293,7 @@ const App: React.FC = () => {
                                     <FoodItemCard 
                                         key={item.id} 
                                         item={item} 
-                                        onAddToCart={addToCart} 
+                                        onAddToCart={handleRequestAddToCart} 
                                         onViewDetails={handleViewProduct}
                                         isFavorite={favorites.has(item.id)}
                                         onToggleFavorite={toggleFavorite}
@@ -323,7 +359,7 @@ const App: React.FC = () => {
                     </div>
                 );
             default:
-                return <HomeView foodItems={sampleFoodItems} addToCart={addToCart} onViewProduct={handleViewProduct} onViewCampaign={handleViewCampaign} favorites={favorites} onToggleFavorite={toggleFavorite} />;
+                return <HomeView foodItems={sampleFoodItems} addToCart={handleRequestAddToCart} onViewProduct={handleViewProduct} onViewCampaign={handleViewCampaign} favorites={favorites} onToggleFavorite={toggleFavorite} onNavigate={setCurrentView} />;
         }
     };
 
@@ -333,6 +369,10 @@ const App: React.FC = () => {
                 return <RegisterView onNavigate={setCurrentView} />;
             case View.Verify:
                 return <VerifyView onVerify={handleRegistrationSuccess} onBack={() => setCurrentView(View.Register)} />;
+            case View.ResetPassword:
+                return <ResetPasswordView onNavigate={setCurrentView} />;
+            case View.PasswordResetSent:
+                return <PasswordResetSentView onNavigate={setCurrentView} />;
             case View.Login:
             default:
                 return <LoginView onLogin={handleLogin} onNavigate={setCurrentView} />;
@@ -358,6 +398,12 @@ const App: React.FC = () => {
                 {renderView()}
             </main>
             {showChrome && <BottomNavBar currentView={currentView} onNavigate={setCurrentView} />}
+            <CustomizationModal
+                isOpen={!!itemToCustomize}
+                item={itemToCustomize}
+                onClose={() => setItemToCustomize(null)}
+                onAddToCart={confirmAddToCart}
+            />
             {isToastVisible && (
                 <div
                     role="alert"

@@ -44,10 +44,16 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, onNavigate }) => {
                         />
                     </div>
                 </form>
+                
+                <div className="text-right mt-4">
+                    <button onClick={() => onNavigate(View.ResetPassword)} className="text-sm font-semibold text-red-300 hover:text-red-200 hover:underline focus:outline-none">
+                        Quên mật khẩu?
+                    </button>
+                </div>
 
                 <button
                     onClick={onLogin}
-                    className="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-700 transition-all duration-300 mt-8"
+                    className="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-700 transition-all duration-300 mt-4"
                 >
                     Đăng nhập
                 </button>

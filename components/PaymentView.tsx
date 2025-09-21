@@ -88,8 +88,20 @@ const VoucherModal: React.FC<{
 const PaymentView: React.FC<PaymentViewProps> = ({ cartItems, placeOrder, user, onBack }) => {
     const [selectedMethod, setSelectedMethod] = useState('Cash');
     const [orderNote, setOrderNote] = useState('');
+    const [deliveryAddress, setDeliveryAddress] = useState('Nhà D - FTU, Khuôn viên trường ĐH Ngoại thương');
     const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
     const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
+    const [cardInfo, setCardInfo] = useState({
+        number: '',
+        expiry: '',
+        cvc: '',
+        name: ''
+    });
+
+    const handleCardInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setCardInfo(prev => ({ ...prev, [name]: value }));
+    };
 
     const subtotal = useMemo(() => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0), [cartItems]);
 
@@ -153,13 +165,13 @@ const PaymentView: React.FC<PaymentViewProps> = ({ cartItems, placeOrder, user, 
                 {/* Delivery Address */}
                 <div className="mb-6">
                     <h3 className="text-lg font-semibold text-gray-700 mb-2">Giao đến</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg flex justify-between items-center">
-                        <div>
-                            <p className="font-bold">Nhà D - FTU</p>
-                            <p className="text-sm text-gray-500">Khuôn viên trường ĐH Ngoại thương</p>
-                        </div>
-                         <button className="font-semibold text-red-600 text-sm">Thay đổi</button>
-                    </div>
+                    <input
+                        type="text"
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white text-black"
+                        placeholder="Nhập địa chỉ giao hàng..."
+                    />
                 </div>
 
                 {/* Order Summary */}
@@ -181,7 +193,7 @@ const PaymentView: React.FC<PaymentViewProps> = ({ cartItems, placeOrder, user, 
                      <textarea
                         value={orderNote}
                         onChange={(e) => setOrderNote(e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white text-black"
                         placeholder="Ví dụ: không hành, ít cay..."
                         rows={3}
                     ></textarea>
@@ -209,17 +221,90 @@ const PaymentView: React.FC<PaymentViewProps> = ({ cartItems, placeOrder, user, 
                 {/* Payment Method */}
                 <div>
                      <h3 className="text-lg font-semibold text-gray-700 mb-2">Phương thức thanh toán</h3>
-                     <div className="space-y-3">
+                    <div className="space-y-3">
                         <label className="flex items-center p-4 border rounded-lg cursor-pointer">
-                            <i className="fas fa-money-bill-wave text-green-500 text-xl mr-4"></i>
+                            <i className="fas fa-money-bill-wave text-green-500 text-xl mr-4 w-8 text-center"></i>
                             <span className="flex-grow font-semibold text-gray-800">Thanh toán khi nhận hàng</span>
                             <input type="radio" name="payment" value="Cash" checked={selectedMethod === 'Cash'} onChange={(e) => setSelectedMethod(e.target.value)} className="form-radio h-5 w-5 text-red-600"/>
                         </label>
                          <label className="flex items-center p-4 border rounded-lg cursor-pointer">
-                            <i className="fab fa-cc-mastercard text-red-600 text-xl mr-4"></i>
-                            <span className="flex-grow font-semibold text-gray-800">Mastercard</span>
-                             <input type="radio" name="payment" value="Mastercard" checked={selectedMethod === 'Mastercard'} onChange={(e) => setSelectedMethod(e.target.value)} className="form-radio h-5 w-5 text-red-600"/>
+                            <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-ZaloPay-Square.png" alt="ZaloPay" className="h-8 w-8 object-contain mr-4"/>
+                            <span className="flex-grow font-semibold text-gray-800">ZaloPay</span>
+                             <input type="radio" name="payment" value="ZaloPay" checked={selectedMethod === 'ZaloPay'} onChange={(e) => setSelectedMethod(e.target.value)} className="form-radio h-5 w-5 text-red-600"/>
                         </label>
+                        <label className="flex items-center p-4 border rounded-lg cursor-pointer">
+                            <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-ShopeePay-V.png" alt="ShopeePay" className="h-8 w-8 object-contain mr-4"/>
+                            <span className="flex-grow font-semibold text-gray-800">ShopeePay</span>
+                             <input type="radio" name="payment" value="ShopeePay" checked={selectedMethod === 'ShopeePay'} onChange={(e) => setSelectedMethod(e.target.value)} className="form-radio h-5 w-5 text-red-600"/>
+                        </label>
+                        <div className="border rounded-lg transition-all duration-300">
+                            <label className="flex items-center p-4 cursor-pointer">
+                                <i className="fas fa-credit-card text-blue-500 text-xl mr-4 w-8 text-center"></i>
+                                <span className="flex-grow font-semibold text-gray-800">Thẻ tín dụng/ghi nợ</span>
+                                <input 
+                                    type="radio" 
+                                    name="payment" 
+                                    value="Card" 
+                                    checked={selectedMethod === 'Card'} 
+                                    onChange={(e) => setSelectedMethod(e.target.value)} 
+                                    className="form-radio h-5 w-5 text-red-600"
+                                />
+                            </label>
+                            {selectedMethod === 'Card' && (
+                                <div className="p-4 border-t border-gray-200 bg-gray-50 space-y-4">
+                                    <div>
+                                        <label htmlFor="cardName" className="block mb-1 text-xs font-medium text-gray-600">Tên trên thẻ</label>
+                                        <input
+                                            id="cardName"
+                                            name="name"
+                                            type="text"
+                                            value={cardInfo.name}
+                                            onChange={handleCardInfoChange}
+                                            placeholder="NGUYEN VAN A"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="cardNumber" className="block mb-1 text-xs font-medium text-gray-600">Số thẻ</label>
+                                        <input
+                                            id="cardNumber"
+                                            name="number"
+                                            type="text"
+                                            value={cardInfo.number}
+                                            onChange={handleCardInfoChange}
+                                            placeholder="•••• •••• •••• ••••"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 text-sm"
+                                        />
+                                    </div>
+                                    <div className="flex gap-4">
+                                        <div className="w-1/2">
+                                            <label htmlFor="cardExpiry" className="block mb-1 text-xs font-medium text-gray-600">Ngày hết hạn</label>
+                                            <input
+                                                id="cardExpiry"
+                                                name="expiry"
+                                                type="text"
+                                                value={cardInfo.expiry}
+                                                onChange={handleCardInfoChange}
+                                                placeholder="MM/YY"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 text-sm"
+                                            />
+                                        </div>
+                                        <div className="w-1/2">
+                                            <label htmlFor="cardCvc" className="block mb-1 text-xs font-medium text-gray-600">CVC</label>
+                                            <input
+                                                id="cardCvc"
+                                                name="cvc"
+                                                type="text"
+                                                value={cardInfo.cvc}
+                                                onChange={handleCardInfoChange}
+                                                placeholder="•••"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                      </div>
                 </div>
 

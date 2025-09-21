@@ -8,6 +8,19 @@ export interface Review {
     avatarUrl: string;
 }
 
+export interface CustomizationChoice {
+    name: string;
+    price: number;
+}
+
+export interface CustomizationOption {
+    id: string;
+    title: string;
+    type: 'single' | 'multiple';
+    required?: boolean;
+    choices: CustomizationChoice[];
+}
+
 export interface FoodItem {
     id: number;
     name: string;
@@ -18,10 +31,19 @@ export interface FoodItem {
     popularity: number;
     rating: number;
     reviews?: Review[];
+    options?: CustomizationOption[];
+}
+
+export interface SelectedOption {
+    optionTitle: string;
+    choiceName: string;
+    choicePrice: number;
 }
 
 export interface CartItem extends FoodItem {
+    cartItemId: string; // ID duy nhất cho mỗi mục trong giỏ hàng, bao gồm cả tùy chỉnh
     quantity: number;
+    selectedOptions: SelectedOption[];
 }
 
 export enum OrderStatus {
@@ -89,6 +111,9 @@ export enum View {
     OrderHistory = 'orderHistory',
     OfferDetail = 'offerDetail',
     EditProfile = 'editProfile',
+    ResetPassword = 'resetPassword',
+    PasswordResetSent = 'passwordResetSent',
+    Search = 'search',
 }
 
 export interface Voucher {
