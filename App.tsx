@@ -40,6 +40,57 @@ const App: React.FC = () => {
     const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
     const [favorites, setFavorites] = useState<Set<number>>(new Set());
     const [itemToCustomize, setItemToCustomize] = useState<FoodItem | null>(null);
+    const [touchStartX, setTouchStartX] = useState<number | null>(null);
+    const [touchStartY, setTouchStartY] = useState<number | null>(null);
+
+    const handleBackNavigation = useCallback(() => {
+        const backMap: Partial<Record<View, View>> = {
+            [View.Search]: View.Home,
+            [View.ProductDetail]: View.Home,
+            [View.Payment]: View.Cart,
+            [View.Chat]: View.OrderStatus,
+            [View.OfferDetail]: View.Offers,
+            [View.EditProfile]: View.Profile,
+            [View.Verify]: View.Register,
+        };
+
+        const backView = backMap[currentView];
+        if (backView) {
+            setCurrentView(backView);
+        }
+    }, [currentView]);
+
+    const swipeBackEnabledViews: View[] = [
+        View.Search, View.ProductDetail, View.Payment, View.Chat, View.OfferDetail, View.EditProfile, View.Verify
+    ];
+    const canSwipeBack = swipeBackEnabledViews.includes(currentView);
+
+    const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+        if (!canSwipeBack || e.touches[0].clientX < window.innerWidth - 50) {
+            setTouchStartX(null);
+            setTouchStartY(null);
+            return;
+        }
+        setTouchStartX(e.touches[0].clientX);
+        setTouchStartY(e.touches[0].clientY);
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+        if (touchStartX === null || touchStartY === null) return;
+
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+
+        // Swipe to the left
+        if (deltaX < -100 && Math.abs(deltaY) < 50) {
+            handleBackNavigation();
+        }
+
+        setTouchStartX(null);
+        setTouchStartY(null);
+    };
 
     const toggleFavorite = useCallback((itemId: number) => {
         setFavorites(prev => {
@@ -237,13 +288,13 @@ const App: React.FC = () => {
                     onViewProduct={handleViewProduct}
                     favorites={favorites}
                     onToggleFavorite={toggleFavorite}
-                    onBack={() => setCurrentView(View.Home)}
+                    onBack={handleBackNavigation}
                 />;
             case View.ProductDetail:
                 return <ProductDetailView
                     item={selectedFoodItem}
                     onAddToCart={handleRequestAddToCart}
-                    onBack={() => setCurrentView(View.Home)}
+                    onBack={handleBackNavigation}
                     foodItems={sampleFoodItems}
                     onViewProduct={handleViewProduct}
                     favorites={favorites}
@@ -256,24 +307,24 @@ const App: React.FC = () => {
                     cartItems={cart}
                     placeOrder={placeOrder}
                     user={currentUser}
-                    onBack={() => setCurrentView(View.Cart)}
+                    onBack={handleBackNavigation}
                 />;
             case View.OrderStatus:
                 return <OrderTrackingView order={currentOrder} onNewOrder={() => setCurrentView(View.Home)} onChat={() => setCurrentView(View.Chat)} onRateOrder={() => setCurrentView(View.Rating)} />;
             case View.Chat:
-                return <ChatView shipper={currentOrder?.shipper} onBack={() => setCurrentView(View.OrderStatus)} />;
+                return <ChatView shipper={currentOrder?.shipper} onBack={handleBackNavigation} />;
             case View.Rating:
                 return <RatingView order={currentOrder} onSubmitRating={handleRatingSubmit} />;
             case View.Profile:
                 return <ProfileView user={currentUser} onLogout={handleLogout} onNavigate={setCurrentView} />;
             case View.EditProfile:
-                return <EditProfileView user={currentUser} onSave={handleUpdateUser} onBack={() => setCurrentView(View.Profile)} />;
+                return <EditProfileView user={currentUser} onSave={handleUpdateUser} onBack={handleBackNavigation} />;
             case View.Offers:
                 return <OffersView onViewCampaign={handleViewCampaign} />;
             case View.OfferDetail:
                 return <OfferDetailView 
                     campaign={selectedCampaign} 
-                    onBack={() => setCurrentView(View.Offers)} 
+                    onBack={handleBackNavigation} 
                     onNavigateToMenu={() => setCurrentView(View.Home)}
                 />;
             case View.OrderHistory:
@@ -368,7 +419,7 @@ const App: React.FC = () => {
             case View.Register:
                 return <RegisterView onNavigate={setCurrentView} />;
             case View.Verify:
-                return <VerifyView onVerify={handleRegistrationSuccess} onBack={() => setCurrentView(View.Register)} />;
+                return <VerifyView onVerify={handleRegistrationSuccess} onBack={handleBackNavigation} />;
             case View.ResetPassword:
                 return <ResetPasswordView onNavigate={setCurrentView} />;
             case View.PasswordResetSent:
@@ -388,7 +439,11 @@ const App: React.FC = () => {
 
 
     return (
-        <div className="h-full flex flex-col bg-gray-100/90 font-sans">
+        <div 
+            className="h-full flex flex-col bg-gray-100/90 font-sans"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+        >
             {showChrome && <Header
                 cartItemCount={cart.reduce((count, item) => count + item.quantity, 0)}
                 onCartClick={() => setCurrentView(View.Cart)}
