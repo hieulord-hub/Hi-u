@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, FoodItem, CartItem, Order, User, OrderStatus, PaymentMethod, Campaign, SelectedOption } from './types';
 import { sampleFoodItems, samplePastOrders } from './constants';
@@ -60,6 +61,7 @@ const App: React.FC = () => {
     const [isSwiping, setIsSwiping] = useState(false);
     const [swipeTranslateX, setSwipeTranslateX] = useState(0);
     const transitionTimer = useRef<number | null>(null);
+    const isPoppingRef = useRef(false);
     
     const activeStack = navStacks[activeTab] || [activeTab];
     const currentView = activeStack[activeStack.length - 1];
@@ -115,7 +117,7 @@ const App: React.FC = () => {
     }, []);
 
     const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-        if (activeStack.length <= 1 || isTransitioning) return;
+        if (activeStack.length <= 1 || isTransitioning || isPoppingRef.current) return;
         const touch = e.touches[0];
         if (touch.clientX < 40) { // Only trigger swipe if starting from the left edge
             setIsSwiping(true);
@@ -133,7 +135,7 @@ const App: React.FC = () => {
     };
     
     const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-        if (!isSwiping) return;
+        if (!isSwiping || isPoppingRef.current) return;
     
         const screenWidth = window.innerWidth;
         const releaseThreshold = screenWidth * 0.4; // Must swipe 40% of the screen to pop
@@ -142,6 +144,7 @@ const App: React.FC = () => {
         const screenBelow = topScreen.previousElementSibling as HTMLElement | null;
     
         const completePop = () => {
+            isPoppingRef.current = true;
             if (screenBelow) {
                 screenBelow.style.transition = 'transform 300ms ease-in-out';
                 screenBelow.style.transform = 'translateX(0)';
@@ -159,10 +162,12 @@ const App: React.FC = () => {
                  }
                  topScreen.style.transition = '';
                  topScreen.style.transform = '';
+                 isPoppingRef.current = false;
             }, { once: true });
         };
     
         const snapBack = () => {
+            isPoppingRef.current = true;
             if (screenBelow) {
                 screenBelow.style.transition = 'transform 300ms ease-in-out';
                 screenBelow.style.transform = 'translateX(-30%)';
@@ -179,13 +184,16 @@ const App: React.FC = () => {
                  }
                  topScreen.style.transition = '';
                  topScreen.style.transform = '';
+                 isPoppingRef.current = false;
             }, { once: true });
         };
     
         if (swipeTranslateX > releaseThreshold) {
             completePop();
-        } else {
+        } else if (swipeTranslateX > 0) {
             snapBack();
+        } else {
+            setIsSwiping(false);
         }
     };
 
