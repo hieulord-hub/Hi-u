@@ -66,7 +66,8 @@ const App: React.FC = () => {
     const canSwipeBack = swipeBackEnabledViews.includes(currentView);
 
     const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-        if (!canSwipeBack || e.touches[0].clientX < window.innerWidth - 50) {
+        // Gesture must start from the left edge (within 50px)
+        if (!canSwipeBack || e.touches[0].clientX > 50) {
             setTouchStartX(null);
             setTouchStartY(null);
             return;
@@ -83,8 +84,8 @@ const App: React.FC = () => {
         const deltaX = touchEndX - touchStartX;
         const deltaY = touchEndY - touchStartY;
 
-        // Swipe to the left
-        if (deltaX < -100 && Math.abs(deltaY) < 50) {
+        // Swipe to the right
+        if (deltaX > 100 && Math.abs(deltaY) < 50) {
             handleBackNavigation();
         }
 
