@@ -40,25 +40,32 @@ const App: React.FC = () => {
     const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
     const [favorites, setFavorites] = useState<Set<number>>(new Set());
     const [itemToCustomize, setItemToCustomize] = useState<FoodItem | null>(null);
-    
-    // State for swipe-back gesture
-    const [touchStartX, setTouchStartX] = useState<number | null>(null);
-    const [touchStartY, setTouchStartY] = useState<number | null>(null);
-    const [touchDeltaX, setTouchDeltaX] = useState<number>(0);
-    const [isSwiping, setIsSwiping] = useState(false);
+    const [poppingView, setPoppingView] = useState<{ view: View; key: string } | null>(null);
+    const [isPopping, setIsPopping] = useState(false);
 
     const currentView = viewHistory[viewHistory.length - 1];
 
     const navigateTo = useCallback((view: View) => {
         if (view === viewHistory[viewHistory.length - 1]) return;
+        setIsPopping(false);
         setViewHistory(prev => [...prev, view]);
     }, [viewHistory]);
 
     const handleBackNavigation = useCallback(() => {
-        setViewHistory(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
-    }, []);
+        if (viewHistory.length > 1) {
+            const viewToPop = viewHistory[viewHistory.length - 1];
+            setPoppingView({ view: viewToPop, key: `${viewToPop}-${Date.now()}` });
+            setIsPopping(true);
+            setViewHistory(prev => prev.slice(0, -1));
+            setTimeout(() => {
+                setPoppingView(null);
+                setIsPopping(false);
+            }, 400); // Animation duration
+        }
+    }, [viewHistory]);
 
     const resetToView = useCallback((view: View) => {
+        setIsPopping(false);
         setViewHistory([view]);
     }, []);
     
@@ -66,64 +73,10 @@ const App: React.FC = () => {
         if (view === View.Home) {
             resetToView(View.Home);
         } else {
+            setIsPopping(false);
             setViewHistory([View.Home, view]);
         }
     }, [resetToView]);
-
-    const canSwipeBack = viewHistory.length > 1;
-
-    const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-        if (!canSwipeBack || e.touches[0].clientX > 60) {
-            setTouchStartX(null);
-            setTouchStartY(null);
-            return;
-        }
-        setTouchStartX(e.touches[0].clientX);
-        setTouchStartY(e.touches[0].clientY);
-        setTouchDeltaX(0);
-        setIsSwiping(false);
-    };
-
-    const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-        if (touchStartX === null || touchStartY === null) return;
-
-        const currentX = e.touches[0].clientX;
-        const currentY = e.touches[0].clientY;
-        const deltaX = currentX - touchStartX;
-        const deltaY = Math.abs(currentY - touchStartY);
-
-        if (!isSwiping) {
-            if (deltaX > 10 && deltaX > deltaY * 1.5) {
-                setIsSwiping(true);
-            } else if (deltaY > 10) {
-                setTouchStartX(null);
-                setTouchStartY(null);
-                return;
-            }
-        }
-
-        if (isSwiping) {
-            if (e.cancelable) e.preventDefault();
-            setTouchDeltaX(Math.max(0, deltaX));
-        }
-    };
-
-    const handleTouchEnd = () => {
-        if (!isSwiping) {
-            setTouchStartX(null);
-            setTouchStartY(null);
-            return;
-        }
-
-        if (touchDeltaX > window.innerWidth / 3) {
-            handleBackNavigation();
-        }
-
-        setIsSwiping(false);
-        setTouchDeltaX(0);
-        setTouchStartX(null);
-        setTouchStartY(null);
-    };
 
     const toggleFavorite = useCallback((itemId: number) => {
         setFavorites(prev => {
@@ -465,8 +418,7 @@ const App: React.FC = () => {
 
     const viewsWithChrome: View[] = [
         View.Home, View.Offers, View.Favorites, View.Profile, View.Cart, 
-        View.Notifications, View.Loyalty, View.PaymentMethods, View.FAQs, View.Feedback, View.OrderHistory,
-        View.ProductDetail, View.OfferDetail
+        View.Notifications, View.Loyalty, View.PaymentMethods, View.FAQs, View.Feedback, View.OrderHistory
     ];
     const showChrome = viewsWithChrome.includes(currentView);
 
@@ -481,49 +433,45 @@ const App: React.FC = () => {
                 onHomeClick={() => resetToView(View.Home)}
             />}
             <main className={`flex-grow overflow-hidden relative ${showChrome ? 'pt-16 pb-16' : ''}`}>
-                {viewHistory.map((view, index) => {
-                    const isCurrent = index === viewHistory.length - 1;
-                    const isPrevious = index === viewHistory.length - 2;
+                <div className="w-full h-full relative">
+                    {/* Screen that is underneath the top-most one. */}
+                    {/* On push, it is covered. On pop, it is revealed. */}
+                    <div
+                        key={currentView}
+                        className={`view-screen ${isPopping ? 'animation-pop-enter' : (viewHistory.length > 1 ? 'animation-push-enter' : '')}`}
+                        style={{ zIndex: 10 }}
+                    >
+                         <div className="h-full overflow-y-auto scrollbar-hide">
+                            {renderView(currentView)}
+                        </div>
+                    </div>
 
-                    if (!isCurrent && !isPrevious) return null;
-
-                    const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 430;
-
-                    let style: React.CSSProperties = {
-                        position: 'absolute',
-                        inset: 0,
-                        transition: isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.15, 0.85, 0.45, 1)',
-                        zIndex: 10 + index,
-                        background: 'inherit',
-                    };
-
-                    if (isCurrent) {
-                        style.transform = `translateX(${touchDeltaX}px)`;
-                        if (isSwiping) {
-                           style.boxShadow = `-5px 0px 25px rgba(0,0,0,0.15)`;
-                        }
-                    } else if (isPrevious) {
-                        const progress = Math.min(1, touchDeltaX / screenWidth);
-                        const parallaxOffset = -screenWidth * 0.25;
-                        style.transform = `translateX(${parallaxOffset * (1 - progress)}px)`;
-                    }
-
-                    return (
+                    {/* Screen being popped away */}
+                    {poppingView &&
                         <div
-                            key={view + index}
-                            style={style}
-                            {...(isCurrent && {
-                                onTouchStart: handleTouchStart,
-                                onTouchMove: handleTouchMove,
-                                onTouchEnd: handleTouchEnd,
-                            })}
+                            key={poppingView.key}
+                            className="view-screen animation-pop-exit"
+                            style={{ zIndex: 15 }}
                         >
-                            <div className="h-full overflow-y-auto scrollbar-hide">
-                                {renderView(view)}
+                             <div className="h-full overflow-y-auto scrollbar-hide">
+                                {renderView(poppingView.view)}
                             </div>
                         </div>
-                    );
-                })}
+                    }
+                    
+                    {/* Screen being covered on push */}
+                    {viewHistory.length > 1 && !isPopping &&
+                        <div
+                            key={viewHistory[viewHistory.length - 2]}
+                            className="view-screen animation-push-exit"
+                            style={{ zIndex: 5 }}
+                        >
+                            <div className="h-full overflow-y-auto scrollbar-hide">
+                                {renderView(viewHistory[viewHistory.length - 2])}
+                            </div>
+                        </div>
+                    }
+                </div>
             </main>
             {showChrome && <BottomNavBar currentView={currentView} onNavigate={handleTabNavigation} />}
             <CustomizationModal
