@@ -9,14 +9,24 @@ interface OrderTrackingViewProps {
 }
 
 const StatusStep: React.FC<{ icon: string; label: string; isActive: boolean; isCompleted: boolean; }> = ({ icon, label, isActive, isCompleted }) => (
-    <div className="relative flex flex-col items-center w-1/4">
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${isCompleted || isActive ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-            <i className={`fas ${icon} text-xl`}></i>
+    <div className="relative flex flex-col items-center w-1/4 z-10">
+        {/* The ping animation sits behind the icon to create a glow effect */}
+        {isActive && <div className="absolute top-0 w-16 h-16 bg-red-400 rounded-full animate-ping"></div>}
+        
+        <div className={`relative rounded-full flex items-center justify-center transition-all duration-500 ease-in-out
+            ${isActive ? 'w-16 h-16 bg-red-600 text-white shadow-lg -mt-2' : 'w-12 h-12'}
+            ${(isCompleted && !isActive) ? 'bg-red-500 text-white' : ''}
+            ${!isActive && !isCompleted ? 'bg-gray-200 text-gray-500' : ''}
+        `}>
+            <i className={`fas ${icon} transition-all duration-500 ${isActive ? 'text-3xl' : 'text-xl'}`}></i>
         </div>
-        <p className={`mt-2 font-semibold text-center text-sm ${isCompleted || isActive ? 'text-red-600' : 'text-gray-500'}`}>{label}</p>
-        {isActive && <div className="absolute top-3 w-4 h-4 bg-red-500 rounded-full animate-ping"></div>}
+        
+        <p className={`mt-2 font-bold text-center text-sm transition-colors duration-500 ${isActive || isCompleted ? 'text-red-600' : 'text-gray-500'}`}>
+            {label}
+        </p>
     </div>
 );
+
 
 const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({ order, onNewOrder, onChat, onRateOrder }) => {
     if (!order) {
@@ -55,10 +65,10 @@ const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({ order, onNewOrder
                     </p>
                 </div>
 
-                <div className="relative my-10">
+                <div className="relative my-10 pt-2">
                     <div className="absolute left-0 top-6 w-full h-1 bg-gray-200"></div>
                     <div
-                        className="absolute left-0 top-6 h-1 bg-red-500 transition-all duration-500 ease-out"
+                        className="absolute left-0 top-6 h-1 bg-red-500 transition-all duration-500 ease-out z-[5]"
                         style={{ width: getProgressWidth() }}
                     ></div>
                     <div className="relative flex justify-between">

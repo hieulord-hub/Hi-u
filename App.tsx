@@ -30,7 +30,7 @@ import CustomizationModal from './components/CustomizationModal';
 const App: React.FC = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [currentView, setCurrentView] = useState<View>(View.Login);
+    const [viewHistory, setViewHistory] = useState<View[]>([View.Login]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
     const [orderHistory, setOrderHistory] = useState<Order[]>(samplePastOrders);
@@ -40,55 +40,87 @@ const App: React.FC = () => {
     const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
     const [favorites, setFavorites] = useState<Set<number>>(new Set());
     const [itemToCustomize, setItemToCustomize] = useState<FoodItem | null>(null);
+    
+    // State for swipe-back gesture
     const [touchStartX, setTouchStartX] = useState<number | null>(null);
     const [touchStartY, setTouchStartY] = useState<number | null>(null);
+    const [touchDeltaX, setTouchDeltaX] = useState<number>(0);
+    const [isSwiping, setIsSwiping] = useState(false);
+
+    const currentView = viewHistory[viewHistory.length - 1];
+
+    const navigateTo = useCallback((view: View) => {
+        if (view === viewHistory[viewHistory.length - 1]) return;
+        setViewHistory(prev => [...prev, view]);
+    }, [viewHistory]);
 
     const handleBackNavigation = useCallback(() => {
-        const backMap: Partial<Record<View, View>> = {
-            [View.Search]: View.Home,
-            [View.ProductDetail]: View.Home,
-            [View.Payment]: View.Cart,
-            [View.Chat]: View.OrderStatus,
-            [View.OfferDetail]: View.Offers,
-            [View.EditProfile]: View.Profile,
-            [View.Verify]: View.Register,
-        };
+        setViewHistory(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
+    }, []);
 
-        const backView = backMap[currentView];
-        if (backView) {
-            setCurrentView(backView);
+    const resetToView = useCallback((view: View) => {
+        setViewHistory([view]);
+    }, []);
+    
+    const handleTabNavigation = useCallback((view: View) => {
+        if (view === View.Home) {
+            resetToView(View.Home);
+        } else {
+            setViewHistory([View.Home, view]);
         }
-    }, [currentView]);
+    }, [resetToView]);
 
-    const swipeBackEnabledViews: View[] = [
-        View.Search, View.ProductDetail, View.Payment, View.Chat, View.OfferDetail, View.EditProfile, View.Verify
-    ];
-    const canSwipeBack = swipeBackEnabledViews.includes(currentView);
+    const canSwipeBack = viewHistory.length > 1;
 
     const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-        // Gesture must start from the left edge (within 50px)
-        if (!canSwipeBack || e.touches[0].clientX > 50) {
+        if (!canSwipeBack || e.touches[0].clientX > 60) {
             setTouchStartX(null);
             setTouchStartY(null);
             return;
         }
         setTouchStartX(e.touches[0].clientX);
         setTouchStartY(e.touches[0].clientY);
+        setTouchDeltaX(0);
+        setIsSwiping(false);
     };
 
-    const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
         if (touchStartX === null || touchStartY === null) return;
 
-        const touchEndX = e.changedTouches[0].clientX;
-        const touchEndY = e.changedTouches[0].clientY;
-        const deltaX = touchEndX - touchStartX;
-        const deltaY = touchEndY - touchStartY;
+        const currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
+        const deltaX = currentX - touchStartX;
+        const deltaY = Math.abs(currentY - touchStartY);
 
-        // Swipe to the right
-        if (deltaX > 100 && Math.abs(deltaY) < 50) {
+        if (!isSwiping) {
+            if (deltaX > 10 && deltaX > deltaY * 1.5) {
+                setIsSwiping(true);
+            } else if (deltaY > 10) {
+                setTouchStartX(null);
+                setTouchStartY(null);
+                return;
+            }
+        }
+
+        if (isSwiping) {
+            if (e.cancelable) e.preventDefault();
+            setTouchDeltaX(Math.max(0, deltaX));
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (!isSwiping) {
+            setTouchStartX(null);
+            setTouchStartY(null);
+            return;
+        }
+
+        if (touchDeltaX > window.innerWidth / 3) {
             handleBackNavigation();
         }
 
+        setIsSwiping(false);
+        setTouchDeltaX(0);
         setTouchStartX(null);
         setTouchStartY(null);
     };
@@ -120,16 +152,16 @@ const App: React.FC = () => {
             avatarUrl: `https://i.pravatar.cc/150?u=sinhvienftu`,
             studentId: '2112345678'
         });
-        setCurrentView(View.Home);
+        resetToView(View.Home);
         setToastMessage('Đăng nhập thành công!');
         setIsToastVisible(true);
-    }, []);
+    }, [resetToView]);
     
     const handleRegistrationSuccess = useCallback(() => {
         setToastMessage('Đăng ký thành công!');
         setIsToastVisible(true);
-        setCurrentView(View.Login);
-    }, []);
+        resetToView(View.Login);
+    }, [resetToView]);
 
 
     const handleLogout = useCallback(() => {
@@ -137,8 +169,8 @@ const App: React.FC = () => {
         setCurrentUser(null);
         setCart([]);
         setCurrentOrder(null);
-        setCurrentView(View.Login);
-    }, []);
+        resetToView(View.Login);
+    }, [resetToView]);
 
     const confirmAddToCart = useCallback((item: FoodItem, quantity: number, selectedOptions: SelectedOption[]) => {
         const optionsIdentifier = selectedOptions.map(o => `${o.optionTitle}:${o.choiceName}`).sort().join(',');
@@ -181,13 +213,13 @@ const App: React.FC = () => {
 
     const handleViewProduct = useCallback((item: FoodItem) => {
         setSelectedFoodItem(item);
-        setCurrentView(View.ProductDetail);
-    }, []);
+        navigateTo(View.ProductDetail);
+    }, [navigateTo]);
     
     const handleViewCampaign = useCallback((campaign: Campaign) => {
         setSelectedCampaign(campaign);
-        setCurrentView(View.OfferDetail);
-    }, []);
+        navigateTo(View.OfferDetail);
+    }, [navigateTo]);
 
     const updateCartQuantity = useCallback((cartItemId: string, quantity: number) => {
         setCart(prevCart => {
@@ -206,8 +238,8 @@ const App: React.FC = () => {
         setCart(items);
         setToastMessage('Đã thêm các món từ đơn hàng cũ vào giỏ hàng!');
         setIsToastVisible(true);
-        setCurrentView(View.Cart);
-    }, []);
+        navigateTo(View.Cart);
+    }, [navigateTo]);
 
     const placeOrder = useCallback((paymentMethod: string, note: string, total: number, discount: number, finalTotal: number) => {
         if (cart.length === 0) return;
@@ -234,21 +266,21 @@ const App: React.FC = () => {
         };
         setCurrentOrder(newOrder);
         clearCart();
-        setCurrentView(View.OrderStatus);
-    }, [cart, clearCart, currentOrder]);
+        navigateTo(View.OrderStatus);
+    }, [cart, clearCart, currentOrder, navigateTo]);
 
     const handleRatingSubmit = useCallback(() => {
         setToastMessage('Cảm ơn bạn đã đánh giá!');
         setIsToastVisible(true);
-        setCurrentView(View.Home);
-    }, []);
+        resetToView(View.Home);
+    }, [resetToView]);
 
     const handleUpdateUser = useCallback((updatedUser: User) => {
         setCurrentUser(updatedUser);
-        setCurrentView(View.Profile);
+        handleBackNavigation();
         setToastMessage('Cập nhật thông tin thành công!');
         setIsToastVisible(true);
-    }, []);
+    }, [handleBackNavigation]);
 
     useEffect(() => {
         if (!currentOrder || currentOrder.status === OrderStatus.Completed) return;
@@ -278,10 +310,10 @@ const App: React.FC = () => {
         }
     }, [isToastVisible]);
 
-    const renderView = () => {
-        switch (currentView) {
+    const renderView = (viewToRender: View) => {
+        switch (viewToRender) {
             case View.Home:
-                return <HomeView foodItems={sampleFoodItems} addToCart={handleRequestAddToCart} onViewProduct={handleViewProduct} onViewCampaign={handleViewCampaign} favorites={favorites} onToggleFavorite={toggleFavorite} onNavigate={setCurrentView} />;
+                return <HomeView foodItems={sampleFoodItems} addToCart={handleRequestAddToCart} onViewProduct={handleViewProduct} onViewCampaign={handleViewCampaign} favorites={favorites} onToggleFavorite={toggleFavorite} onNavigate={navigateTo} />;
             case View.Search:
                 return <SearchView 
                     foodItems={sampleFoodItems}
@@ -302,7 +334,7 @@ const App: React.FC = () => {
                     onToggleFavorite={toggleFavorite}
                 />;
             case View.Cart:
-                return <CartView cartItems={cart} updateCartQuantity={updateCartQuantity} onCheckout={() => setCurrentView(View.Payment)} onNavigate={setCurrentView} />;
+                return <CartView cartItems={cart} updateCartQuantity={updateCartQuantity} onCheckout={() => navigateTo(View.Payment)} onNavigate={navigateTo} />;
             case View.Payment:
                 return <PaymentView
                     cartItems={cart}
@@ -311,13 +343,13 @@ const App: React.FC = () => {
                     onBack={handleBackNavigation}
                 />;
             case View.OrderStatus:
-                return <OrderTrackingView order={currentOrder} onNewOrder={() => setCurrentView(View.Home)} onChat={() => setCurrentView(View.Chat)} onRateOrder={() => setCurrentView(View.Rating)} />;
+                return <OrderTrackingView order={currentOrder} onNewOrder={() => resetToView(View.Home)} onChat={() => navigateTo(View.Chat)} onRateOrder={() => navigateTo(View.Rating)} />;
             case View.Chat:
                 return <ChatView shipper={currentOrder?.shipper} onBack={handleBackNavigation} />;
             case View.Rating:
                 return <RatingView order={currentOrder} onSubmitRating={handleRatingSubmit} />;
             case View.Profile:
-                return <ProfileView user={currentUser} onLogout={handleLogout} onNavigate={setCurrentView} />;
+                return <ProfileView user={currentUser} onLogout={handleLogout} onNavigate={navigateTo} />;
             case View.EditProfile:
                 return <EditProfileView user={currentUser} onSave={handleUpdateUser} onBack={handleBackNavigation} />;
             case View.Offers:
@@ -326,7 +358,7 @@ const App: React.FC = () => {
                 return <OfferDetailView 
                     campaign={selectedCampaign} 
                     onBack={handleBackNavigation} 
-                    onNavigateToMenu={() => setCurrentView(View.Home)}
+                    onNavigateToMenu={() => resetToView(View.Home)}
                 />;
             case View.OrderHistory:
                 return <OrderHistoryView orders={orderHistory} onReorder={handleReorder} />;
@@ -411,23 +443,23 @@ const App: React.FC = () => {
                     </div>
                 );
             default:
-                return <HomeView foodItems={sampleFoodItems} addToCart={handleRequestAddToCart} onViewProduct={handleViewProduct} onViewCampaign={handleViewCampaign} favorites={favorites} onToggleFavorite={toggleFavorite} onNavigate={setCurrentView} />;
+                return <HomeView foodItems={sampleFoodItems} addToCart={handleRequestAddToCart} onViewProduct={handleViewProduct} onViewCampaign={handleViewCampaign} favorites={favorites} onToggleFavorite={toggleFavorite} onNavigate={navigateTo} />;
         }
     };
 
     if (!isLoggedIn) {
         switch (currentView) {
             case View.Register:
-                return <RegisterView onNavigate={setCurrentView} />;
+                return <RegisterView onNavigate={navigateTo} />;
             case View.Verify:
                 return <VerifyView onVerify={handleRegistrationSuccess} onBack={handleBackNavigation} />;
             case View.ResetPassword:
-                return <ResetPasswordView onNavigate={setCurrentView} />;
+                return <ResetPasswordView onNavigate={navigateTo} />;
             case View.PasswordResetSent:
-                return <PasswordResetSentView onNavigate={setCurrentView} />;
+                return <PasswordResetSentView onNavigate={navigateTo} />;
             case View.Login:
             default:
-                return <LoginView onLogin={handleLogin} onNavigate={setCurrentView} />;
+                return <LoginView onLogin={handleLogin} onNavigate={navigateTo} />;
         }
     }
 
@@ -442,18 +474,58 @@ const App: React.FC = () => {
     return (
         <div 
             className="h-full flex flex-col bg-gray-100/90 font-sans"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
         >
             {showChrome && <Header
                 cartItemCount={cart.reduce((count, item) => count + item.quantity, 0)}
-                onCartClick={() => setCurrentView(View.Cart)}
-                onHomeClick={() => setCurrentView(View.Home)}
+                onCartClick={() => navigateTo(View.Cart)}
+                onHomeClick={() => resetToView(View.Home)}
             />}
-            <main className={`flex-grow overflow-y-auto scrollbar-hide ${showChrome ? 'pt-16 pb-16' : ''}`}>
-                {renderView()}
+            <main className={`flex-grow overflow-hidden relative ${showChrome ? 'pt-16 pb-16' : ''}`}>
+                {viewHistory.map((view, index) => {
+                    const isCurrent = index === viewHistory.length - 1;
+                    const isPrevious = index === viewHistory.length - 2;
+
+                    if (!isCurrent && !isPrevious) return null;
+
+                    const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 430;
+
+                    let style: React.CSSProperties = {
+                        position: 'absolute',
+                        inset: 0,
+                        transition: isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.15, 0.85, 0.45, 1)',
+                        zIndex: 10 + index,
+                        background: 'inherit',
+                    };
+
+                    if (isCurrent) {
+                        style.transform = `translateX(${touchDeltaX}px)`;
+                        if (isSwiping) {
+                           style.boxShadow = `-5px 0px 25px rgba(0,0,0,0.15)`;
+                        }
+                    } else if (isPrevious) {
+                        const progress = Math.min(1, touchDeltaX / screenWidth);
+                        const parallaxOffset = -screenWidth * 0.25;
+                        style.transform = `translateX(${parallaxOffset * (1 - progress)}px)`;
+                    }
+
+                    return (
+                        <div
+                            key={view + index}
+                            style={style}
+                            {...(isCurrent && {
+                                onTouchStart: handleTouchStart,
+                                onTouchMove: handleTouchMove,
+                                onTouchEnd: handleTouchEnd,
+                            })}
+                        >
+                            <div className="h-full overflow-y-auto scrollbar-hide">
+                                {renderView(view)}
+                            </div>
+                        </div>
+                    );
+                })}
             </main>
-            {showChrome && <BottomNavBar currentView={currentView} onNavigate={setCurrentView} />}
+            {showChrome && <BottomNavBar currentView={currentView} onNavigate={handleTabNavigation} />}
             <CustomizationModal
                 isOpen={!!itemToCustomize}
                 item={itemToCustomize}
@@ -473,7 +545,7 @@ const App: React.FC = () => {
                     {currentView !== View.Cart && toastMessage.includes("giỏ hàng") &&
                         <button
                             onClick={() => {
-                                setCurrentView(View.Cart);
+                                navigateTo(View.Cart);
                                 setIsToastVisible(false);
                             }}
                             className="ml-4 font-bold text-red-400 hover:text-red-300 transition-colors whitespace-nowrap"
