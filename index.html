@@ -79,15 +79,6 @@
         from { transform: translateX(0); }
         to { transform: translateX(100%); }
       }
-      
-      /* New animations for swipe-back gesture */
-      @keyframes swipe-enter {
-        to { transform: translateX(0); opacity: 1; }
-      }
-      @keyframes swipe-exit {
-        to { transform: translateX(100%); }
-      }
-
 
       /* --- Tab Navigation Animations --- */
       @keyframes tab-enter-from-right {
@@ -113,15 +104,12 @@
         background-color: #F9FAFB; /* bg-gray-50 */
         box-shadow: -8px 0 25px rgba(0,0,0,0.15);
         will-change: transform, opacity;
-        touch-action: pan-y; /* Allow vertical scroll, disable horizontal scrolling unless handled by JS */
       }
 
       .animation-push-enter { animation: push-enter 350ms ease-in-out; }
       .animation-push-exit { animation: push-exit 350ms ease-in-out forwards; }
       .animation-pop-enter { animation: pop-enter 350ms ease-in-out; }
       .animation-pop-exit { animation: pop-exit 350ms ease-in-out forwards; }
-      .animation-swipe-enter { animation: swipe-enter 300ms ease-out; }
-      .animation-swipe-exit { animation: swipe-exit 300ms ease-out forwards; }
       
       .animation-tab-enter-right { animation: tab-enter-from-right 300ms ease-in-out; }
       .animation-tab-exit-left { animation: tab-exit-to-left 300ms ease-in-out forwards; }
